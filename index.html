@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CS2 Inventory Project - Fixed</title>
+    <style>
+        :root {
+            --bg-main: #1b2838;
+            --bg-panel: #171a21;
+            --bg-slot: #3c3d3e;
+            --border-color: #545657;
+            --text-main: #8f98a0;
+            --rarity-base: #b0c3d9;
+            --rarity-industrial: #5e98d9;
+            --rarity-restricted: #8847ff;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .main-layout {
+            width: 100%;
+            max-width: 960px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Панель описания */
+        .info-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            display: flex;
+            padding: 25px;
+            min-height: 200px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .info-image {
+            width: 250px;
+            height: 180px;
+            background: radial-gradient(circle, #3d4448 0%, #111 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 5px solid transparent;
+        }
+
+        .info-image img {
+            max-width: 85%;
+            max-height: 85%;
+            filter: drop-shadow(0 0 15px rgba(0,0,0,0.5));
+        }
+
+        .info-content {
+            margin-left: 30px;
+            flex: 1;
+        }
+
+        .info-content h2 { margin: 0; color: #fff; font-size: 26px; }
+        .info-content .type { margin: 10px 0; font-size: 14px; color: #aaa; }
+        .info-content .desc { font-size: 14px; line-height: 1.6; color: #8f98a0; background: rgba(0,0,0,0.2); padding: 10px; }
+
+        /* Сетка инвентаря */
+        .inventory-scroll {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid #000;
+            padding: 10px;
+            height: 550px;
+            overflow-y: auto;
+        }
+
+        /* Скроллбар */
+        .inventory-scroll::-webkit-scrollbar { width: 8px; }
+        .inventory-scroll::-webkit-scrollbar-thumb { background: #3c3d3e; border-radius: 4px; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, 104px);
+            gap: 8px;
+        }
+
+        .slot {
+            width: 104px;
+            height: 104px;
+            background: #3c3d3e;
+            border: 1px solid var(--border-color);
+            position: relative;
+            cursor: pointer;
+            background-image: radial-gradient(circle at center, #4a4b4c 0%, #2a2b2c 100%);
+        }
+
+        .slot:hover { border-color: #fff; z-index: 10; }
+        .slot.active { border: 2px solid white; box-shadow: 0 0 15px rgba(255,255,255,0.2); }
+
+        .slot img { width: 90%; height: 90%; margin: 5%; object-fit: contain; }
+
+        .rarity-bar { position: absolute; bottom: 0; left: 0; width: 100%; height: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="main-layout">
+    <div class="info-panel">
+        <div class="info-image" id="info-img-wrap"><img id="display-img" src="" alt=""></div>
+        <div class="info-content">
+            <h2 id="display-name">Загрузка...</h2>
+            <div class="type" id="display-type"></div>
+            <div class="desc" id="display-desc"></div>
+        </div>
+    </div>
+
+    <div class="inventory-scroll">
+        <div class="grid" id="inv-grid"></div>
+    </div>
+</div>
+
+<script>
+    // Используем стабильные ссылки GitHub (SteamDatabase)
+    const itemsData = [
+        {
+            name: "Кейс «Призма 2»",
+            type: "Контейнер базового класса",
+            color: "#b0c3d9",
+            img: "https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/resource/flash/econ/cases/prism_2.png",
+            q: 24,
+            d: "Содержит 17 раскрасок оружия и редкие ножи серии «Горизонт»."
+        },
+        {
+            name: "Капсула PGL Copenhagen 2024",
+            type: "Контейнер базового класса",
+            color: "#b0c3d9",
+            img: "https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/resource/flash/econ/stickers/copenhagen2024/capsule_pgl_copenhagen2024_legends.png",
+            q: 56,
+            d: "Содержит наклейку одной из команд-легенд турнира PGL Major Copenhagen 2024."
+        },
+        {
+            name: "AWP | Африканская сетка",
+            type: "Снайперская винтовка",
+            color: "#5e98d9",
+            img: "https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/resource/flash/econ/default_generated/weapon_awp_hy_dungle_light_large.png",
+            q: 165,
+            d: "Окрашено через трафарет с помощью обрывков картона и сетки-рабицы."
+        },
+        {
+            name: "AK-47 | Синий глянец",
+            type: "Винтовка запрещенного качества",
+            color: "#8847ff",
+            img: "https://raw.githubusercontent.com/SteamDatabase/GameTracking-CSGO/master/resource/flash/econ/default_generated/weapon_ak47_cu_blue_lam_large.png",
+            q: 1,
+            d: "Классический скин. Части оружия сделаны из слоев синей древесины."
+        }
+    ];
+
+    const grid = document.getElementById('inv-grid');
+
+    function updateDetails(data) {
+        document.getElementById('display-name').innerText = data.name;
+        document.getElementById('display-name').style.color = data.color;
+        document.getElementById('display-type').innerText = data.type;
+        document.getElementById('display-desc').innerText = data.d;
+        document.getElementById('display-img').src = data.img;
+        document.getElementById('info-img-wrap').style.borderBottomColor = data.color;
+    }
+
+    function init() {
+        let isFirst = true;
+
+        itemsData.forEach(item => {
+            for(let i = 0; i < item.q; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'slot';
+                slot.innerHTML = `<img src="${item.img}"><div class="rarity-bar" style="background:${item.color}"></div>`;
+                
+                slot.onclick = () => {
+                    document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+                    slot.classList.add('active');
+                    updateDetails(item);
+                };
+
+                grid.appendChild(slot);
+
+                if (isFirst) {
+                    slot.classList.add('active');
+                    updateDetails(item);
+                    isFirst = false;
+                }
+            }
+        });
+    }
+
+    window.onload = init;
+</script>
+
+</body>
+</html>
